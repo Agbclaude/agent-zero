@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Agent Zéro – Jeu de tir</title>
+<!-- 1) Après approbation AdSense, collez ici votre script :
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
+<style>
+html,body{margin:0;height:100%;background:#0d2b52;overflow:hidden;touch-action:none;user-select:none;font-family:Arial,sans-serif}
+#w{display:flex;flex-direction:column;align-items:center;height:100%}
+canvas{height:calc(100% - 60px);width:auto;max-width:100%}
+#ad{width:100%;max-width:728px;height:60px;background:#0a2140;color:#6f86ad;display:flex;align-items:center;justify-content:center;font-size:12px}
+</style></head><body>
+<div id="w"><canvas id="c" width="360" height="560"></canvas>
+<!-- 2) Remplacez ce bloc par votre unité AdSense (bannière) -->
+<div id="ad">Espace publicitaire AdSense</div></div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d'),W=360,G=420;
+const WP=[
+ {n:'Pistolet',p:0,a:[0],o:[0],s:700,cd:.25},
+ {n:'Pompe',p:30,a:[-.12,0,.12],o:[0,0,0],s:650,cd:.4},
+ {n:'Rafale',p:60,a:[0,0,0],o:[0,-28,-56],s:750,cd:.35},
+ {n:'Sniper',p:100,a:[0],o:[0],s:1100,cd:.5,pr:1,d:2}];
+const SK=[{n:'Noir',p:0,c:'#1b1b1b'},{n:'Bleu',p:20,c:'#1d4ed8'},{n:'Vert',p:40,c:'#15803d'},{n:'Or',p:80,c:'#d4a017'}];
+const TH=[['#1e6fd9','#8fd3ff','#d9a066'],['#e8602c','#ffd08a','#c98b52'],['#0b1030','#3a4a8f','#4a4a5a'],['#2e9d6f','#b8f0c8','#cdb77a']];
+let sav={coins:0,w:0,s:0,o:{w:[1,0,0,0],s:[1,0,0,0]},lv:1,best:1};
+try{Object.assign(sav,JSON.parse(localStorage.getItem('az2')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('az2',JSON.stringify(sav))}catch(e){}};
+let st='menu',lv=sav.lv||1,P,E,B,EB,cam,hold,ang,aimT,cd,endX;
+function init(){
+  P={x:60};E=[];B=[];EB=[];cam=0;hold=false;ang=0;aimT=0;cd=0;
+  const n=Math.min(3+lv,12),gap=Math.max(190,270-lv*5),boss=lv%5==0;
+  for(let i=0;i<n;i++){
+    const last=boss&&i==n-1,r=Math.random(),h=last?0:(Math.random()<.5?0:60+(Math.random()*50|0)),px=380+i*gap;
+    const k=last?'B':lv>=2&&r<.25?'a':lv>=4&&r<.5?'f':'n';
+    E.push({x:px,h,a:1,w:0,s:0,k,hp:k=='B'?8:k=='a'?2:1,mx:k=='B'?8:k=='a'?2:1,sc:k=='B'?1.7:1,hh:k=='B'?92:54});
+    if(!last&&lv>=3&&Math.random()<.35)E.push({x:px+48,h:0,a:1,w:0,s:0,k:'b',hp:1,sc:1,hh:30});
+  }
+  endX=E[E.length-1].x+300;st='play';
+}
+function shoot(){
+  const w=WP[sav.w];
+  w.a.forEach((o,i)=>{const a=ang+o;
+    B.push({x:P.x+10+w.o[i],y:G-30,vx:Math.cos(a)*w.s,vy:-Math.sin(a)*w.s,pr:w.pr,d:w.d||1,h:[]})});
+  cd=w.cd;
+}
+function kill(e){
+  e.a=0;
+  if(e.k=='b'){for(const o of E)if(o.a&&Math.abs(o.x-e.x)<85)kill(o)}
+  else{sav.coins+=e.k=='B'?10:1}
+}
+function pick(k,i){
+  const arr=k=='w'?WP:SK;
+  if(!sav.o[k][i]){if(sav.coins<arr[i].p)return;sav.coins-=arr[i].p;sav.o[k][i]=1}
+  sav[k]=i;save();
+}
+function pos(e){const r=c.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*560/r.height]}
+c.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(st=='play'){hold=true;aimT=0;return}
+  const[p,q]=pos(e),hit=(a,b,w,h)=>p>a&&p<a+w&&q>b&&q<b+h;
+  if(st=='menu'){
+    for(let i=0;i<4;i++){if(hit(14+i*86,290,80,56))pick('w',i);if(hit(14+i*86,390,80,56))pick('s',i)}
+    if(hit(80,470,200,50))init();
+  }else{
+    if(hit(80,320,200,48))init();else if(hit(80,380,200,48))st='menu';
+  }
+});
+addEventListener('pointerup',()=>{if(st=='play'&&hold){hold=false;if(cd<=0)shoot()}});
+function update(dt){
+  if(st!='play')return;
+  const d=dt*(hold?.12:1);
+  cd-=dt;
+  if(hold){aimT+=dt;ang=Math.sin(aimT*3)*.6}
+  P.x+=95*d;cam=P.x-80;
+  for(const e of E){
+    if(!e.a||e.k=='b')continue;
+    if(e.x-P.x<250&&e.x>P.x-120){
+      e.w+=d;
+      if(e.w>(e.k=='f'?.6:1.2)){
+        e.s-=d;
+        if(e.s<=0){
+          e.s=e.k=='f'?1:e.k=='B'?1.4:1.6;
+          const sx=e.x-8*e.sc,sy=G-e.h-30*e.sc,base=Math.atan2(G-30-sy,P.x-sx);
+          (e.k=='B'?[-.18,0,.18]:[0]).forEach(o=>EB.push({x:sx,y:sy,vx:Math.cos(base+o)*220,vy:Math.sin(base+o)*220}));
+        }
+      }
+    }
+  }
+  for(const b of B){
+    b.x+=b.vx*dt;b.y+=b.vy*dt;
+    for(const e of E){
+      if(!e.a||b.h.includes(e))continue;
+      if(Math.abs(b.x-e.x)<14*e.sc&&b.y>G-e.h-e.hh&&b.y<G-e.h){
+        b.h.push(e);e.hp-=b.d;if(e.hp<=0)kill(e);
+        if(!b.pr){b.dead=1;break}
+      }
+    }
+    if(b.y>G||b.x>cam+W+60)b.dead=1;
+  }
+  B=B.filter(b=>!b.dead);
+  for(const b of EB){
+    b.x+=b.vx*d;b.y+=b.vy*d;
+    if(Math.abs(b.x-P.x)<12&&b.y>G-56&&b.y<G){st='over';save()}
+    if(b.x<cam-60||b.y>G)b.dead=1;
+  }
+  EB=EB.filter(b=>!b.dead);
+  if(P.x>endX){
+    st='win';lv++;sav.coins+=5;sav.lv=lv;if(lv>sav.best)sav.best=lv;save();
+  }
+}
+function fig(px,py,col,pl,sc){
+  x.save();x.translate(px,py);x.scale(sc,sc);
+  x.lineCap='round';x.lineWidth=6;x.strokeStyle=col;
+  x.beginPath();x.moveTo(-6,0);x.lineTo(0,-18);x.lineTo(6,0);x.moveTo(0,-18);x.lineTo(0,-36);x.stroke();
+  x.fillStyle='#fff';x.beginPath();x.arc(0,-44,9,0,7);x.fill();
+  x.strokeStyle='#111';x.lineWidth=4;x.beginPath();x.moveTo(0,-30);x.lineTo(pl?18:-18,-30);x.stroke();
+  if(pl){x.fillStyle='#111';x.fillRect(-2,-48,11,4);x.fillStyle='#e63946';x.fillRect(-1,-34,3,10)}
+  x.restore();
+}
+function btn(bx,by,bw,bh,l1,l2,sel,own){
+  x.fillStyle=sel?'#ffd23f':own?'#2a5fa8':'#1a3558';x.fillRect(bx,by,bw,bh);
+  x.fillStyle=sel?'#111':'#fff';x.textAlign='center';x.font='bold 13px Arial';
+  x.fillText(l1,bx+bw/2,by+bh/2-2);x.font='12px Arial';x.fillText(l2,bx+bw/2,by+bh/2+16);
+}
+const COL={n:'#e63946',a:'#6b7b8c',f:'#f59e0b',B:'#7f1d1d'};
+function draw(){
+  const th=TH[((lv-1)/3|0)%4],g=x.createLinearGradient(0,0,0,G);
+  g.addColorStop(0,th[0]);g.addColorStop(1,th[1]);
+  x.fillStyle=g;x.fillRect(0,0,W,560);
+  x.fillStyle=th[2];x.fillRect(0,G,W,140);
+  if(st!='menu'){
+    for(const e of E){
+      const sx=e.x-cam;
+      if(e.h){x.fillStyle='#8a5a2b';x.fillRect(sx-26,G-e.h,52,e.h)}
+      if(e.k=='b'){
+        if(e.a){x.fillStyle='#c0392b';x.fillRect(sx-11,G-30,22,30);x.fillStyle='#f1c40f';x.fillRect(sx-11,G-18,22,5)}
+      }else if(e.a){
+        fig(sx,G-e.h,COL[e.k],false,e.sc);
+        if(e.k=='B'){x.fillStyle='#333';x.fillRect(sx-25,G-e.h-110,50,6);x.fillStyle='#4ade80';x.fillRect(sx-25,G-e.h-110,50*e.hp/e.mx,6)}
+      }else{x.fillStyle='#6b3a1e';x.fillRect(sx-12,G-e.h-4,24,4)}
+    }
+    fig(P.x-cam,G,SK[sav.s].c,true,1);
+    x.fillStyle='#ffd23f';
+    for(const b of B){x.beginPath();x.arc(b.x-cam,b.y,3,0,7);x.fill()}
+    x.fillStyle='#ff3b3b';
+    for(const b of EB){x.beginPath();x.arc(b.x-cam,b.y,4,0,7);x.fill()}
+    if(hold){
+      const ox=P.x-cam+10,oy=G-30;
+      x.setLineDash([6,6]);x.strokeStyle='#fff';x.lineWidth=2;
+      x.beginPath();x.moveTo(ox,oy);x.lineTo(ox+Math.cos(ang)*220,oy-Math.sin(ang)*220);x.stroke();
+      x.setLineDash([]);
+    }
+    x.fillStyle='#fff';x.font='bold 15px Arial';x.textAlign='left';
+    x.fillText('Niveau '+lv+(lv%5==0?' (BOSS)':'')+'  Ennemis : '+E.filter(e=>e.a&&e.k!='b').length,12,26);
+    x.textAlign='right';x.fillText('Pièces : '+sav.coins,W-12,26);
+  }
+  if(st!='play'){
+    x.fillStyle='rgba(8,20,40,.78)';x.fillRect(0,0,W,560);
+    x.fillStyle='#fff';x.textAlign='center';
+    if(st=='menu'){
+      x.font='bold 32px Arial';x.fillText('Agent Zéro',W/2,70);
+      x.font='14px Arial';x.fillText('Maintenez pour viser au ralenti, relâchez pour tirer',W/2,100);
+      x.font='bold 15px Arial';x.fillText('Pièces : '+sav.coins+'   Record : niveau '+sav.best,W/2,140);
+      x.font='bold 14px Arial';x.fillText('Armes',W/2,280);x.fillText('Costumes',W/2,380);
+      WP.forEach((w,i)=>btn(14+i*86,290,80,56,w.n,sav.o.w[i]?(sav.w==i?'Équipé':'Choisir'):w.p+' pièces',sav.w==i,sav.o.w[i]));
+      SK.forEach((s,i)=>btn(14+i*86,390,80,56,s.n,sav.o.s[i]?(sav.s==i?'Équipé':'Choisir'):s.p+' pièces',sav.s==i,sav.o.s[i]));
+      x.fillStyle='#22c55e';x.fillRect(80,470,200,50);
+      x.fillStyle='#fff';x.font='bold 20px Arial';x.fillText('Jouer niveau '+lv,W/2,502);
+    }else{
+      x.font='bold 32px Arial';x.fillText(st=='over'?'Raté !':'Niveau réussi !',W/2,230);
+      x.font='16px Arial';x.fillText(st=='over'?'Un ennemi vous a touché.':'+5 pièces • Prochain : niveau '+lv,W/2,266);
+      x.fillStyle='#22c55e';x.fillRect(80,320,200,48);
+      x.fillStyle='#2a5fa8';x.fillRect(80,380,200,48);
+      x.fillStyle='#fff';x.font='bold 17px Arial';
+      x.fillText(st=='over'?'Rejouer':'Continuer',W/2,351);x.fillText('Boutique',W/2,411);
+    }
+  }
+}
+let last=performance.now();
+function loop(n){
+  const dt=Math.min(.05,(n-last)/1000);last=n;
+  update(dt);draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script></body></html>
